@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	   xmlns:task="http://www.springframework.org/schema/task"
+	   xmlns:context="http://www.springframework.org/schema/context"
+	   xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+            http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd
+            http://www.springframework.org/schema/task http://www.springframework.org/schema/task/spring-task-3.1.xsd">
+
+<!-- ************************************************* -->
+<!-- ***  This is the KAFKA Deployment Descriptor  *** -->
+<!-- ***    for the Feeds Instance environment     *** -->
+<!-- ************************************************* -->
+
+	<bean id="propertySource" class="org.springframework.beans.factory.config.PropertyPlaceholderConfigurer">
+		<property name="location" value="classpath:config.properties"/>
+	</bean>
+
+	<context:component-scan base-package="com.publicrelay.*" />
+
+	<task:executor id="executor" pool-size="25"
+				   queue-capacity="5" />
+	<task:annotation-driven executor="executor" />
+
+	<!-- TEST NEWRELIC OOM KAFKA CONFIGURATIONS -->
+	<!-- testNewrelicOOM Message Producer -->
+	<bean id="testNewrelicOOMKafkaTemplate" class="org.springframework.kafka.core.KafkaTemplate">
+		<constructor-arg>
+			<bean class="org.springframework.kafka.core.DefaultKafkaProducerFactory">
+				<constructor-arg>
+					<map>
+						<entry key="bootstrap.servers" value="${kafka.hosts}"/>
+						<entry key="key.serializer"
+							   value="org.apache.kafka.common.serialization.LongSerializer"/>
+						<entry key="value.serializer"
+							   value="org.apache.kafka.common.serialization.StringSerializer"/>
+					</map>
+				</constructor-arg>
+			</bean>
+		</constructor-arg>
+		<property name="defaultTopic" value="test.newrelic.oom.topic"/>
+	</bean>
+
+	<!-- Newrelic OOM Message Consumer -->
+	<bean id="testNewrelicOOMListenerContainer"
+		  class="org.springframework.kafka.listener.ConcurrentMessageListenerContainer">
+		<constructor-arg>
+			<bean class="org.springframework.kafka.core.DefaultKafkaConsumerFactory">
+				<constructor-arg>
+					<map>
+						<entry key="bootstrap.servers" value="${kafka.hosts}"/>
+						<entry key="enable.auto.commit" value="true"/>
+						<entry key="auto.commit.interval.ms" value="100"/>
+						<entry key="session.timeout.ms" value="15000"/>
+						<entry key="group.id" value="newrelic-oom-test"/>
+						<entry key="key.deserializer"
+							   value="org.apache.kafka.common.serialization.LongDeserializer"/>
+						<entry key="value.deserializer"
+							   value="org.apache.kafka.common.serialization.StringDeserializer"/>
+						<!-- Consume all existing messages on initial start of the consumer -->
+						<entry key="auto.offset.reset" value="earliest"/>
+						<!-- The maximum number of records returned in a single kafka poll Need to assure that the entire
+							batch (max.poll.records) processes within the max.poll.interval.ms interval. Otherwise Consumer would not respond back on
+							time and Kafka would consider this consumer dead and will not save it's offset. So same messages would be processed over
+							and over. -->
+						<entry key="max.poll.records" value="1"/>
+						<!-- Set up to bail if request takes more than 30 min to process -->
+						<entry key="max.poll.interval.ms" value="1800000"/>
+					</map>
+				</constructor-arg>
+			</bean>
+		</constructor-arg>
+		<constructor-arg>
+			<bean class="org.springframework.kafka.listener.ContainerProperties">
+				<constructor-arg name="topics" value="test.newrelic.oom.topic"/>
+				<property name="messageListener">
+					<bean class="com.publicrelay.nrtest.kafka.listener.TestNewrelicOOMMessageListener"/>
+				</property>
+			</bean>
+		</constructor-arg>
+		<property name="concurrency" value="30"></property>
+		<!-- Do not start the listeners by default, will be manually started once the application is fully initialized -->
+		<property name="autoStartup" value="false"/>
+	</bean>
+	<!-- /NEWRELIC OOM KAFKA CONFIGURATIONS -->
+
+
+	<bean name="testNewrelicOOMJob" class="com.publicrelay.nrtest.kafka.job.TestNewrelicOOMJob">
+	</bean>
+</beans>
