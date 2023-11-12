@@ -19,6 +19,11 @@ Reproducible Use-Case for Memory Leaking issue detected after switching PublicRe
         - excludes: org/springframework/web/context/ContextLoaderListener  
     - But we cannot change the autoStartup behavior in Production application   
 
+## Requirements (What you need to have installed to run this repro)
+- JDK 17
+- Maven (I used 3.3.9)
+- Docker (I used 20.10.16)
+- Docker Compose (I used 1.29.2)
 
 ## How to run this repro:
 1. Alter newrelic.yml file:
